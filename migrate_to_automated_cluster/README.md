@@ -1,4 +1,4 @@
-# Migrate to Automated Cluster (from interactive)
+# Migrate to Automated Cluster (Assumes Existing Interactive Cluster Definition)
 
 This Python script is designed to interact with the Databricks API to update a Databricks job with new settings and configurations. The script performs the following tasks:
 
