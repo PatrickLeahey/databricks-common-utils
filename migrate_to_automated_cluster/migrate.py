@@ -11,10 +11,10 @@ def get_job_settings(host, token, job_id):
     response = requests.get(endpoint, headers=headers, json=payload)
     response_json = response.json()
 
-    if "settings" in response_json and response_json["settings"]:
+    if response.status_code == 200:
         return response_json["settings"]
     else:
-        raise Exception(f"Job not found for id: {job_id}")
+        raise Exception(f"Job not found for ID: {job_id}")
 
 
 def update_job(host, token, job_id, settings):
@@ -24,15 +24,24 @@ def update_job(host, token, job_id, settings):
     job_tasks = settings["tasks"]
     for task in job_tasks:
         task.update({"job_cluster_key": job_cluster_key})
-        task.pop("existing_cluster_id")
+        try:
+            task.pop("existing_cluster_id")
+        except:
+            print(f"Warning: Existing cluster expected, but not found for job: {job_id}")
+            pass
+
 
     # Update or parameterize as necessary
+    # Specify instance pool IDs (driver & worker)
     update_payload = {
         "job_clusters": [
             {   
                 "job_cluster_key": job_cluster_key,
                 "new_cluster": {
-                    "num_workers": 4,
+                    "autoscale": {
+                        "min_workers": 1,
+                        "max_workers": 4
+                    },
                     "spark_version": "9.1.x-scala2.12",
                     "spark_conf": {
                         "spark.databricks.io.cache.enabled": "true",
@@ -66,6 +75,8 @@ def update_job(host, token, job_id, settings):
                             }
                         }
                     ],
+                    "driver_instance_pool_id": None, # TODO
+                    "instance_pool_id": None, # TODO
                     "enable_local_disk_encryption": False,
                     "runtime_engine": "PHOTON",
                 }
@@ -79,8 +90,11 @@ def update_job(host, token, job_id, settings):
     payload = {"job_id": job_id, "new_settings": update_payload}
 
     response = requests.post(endpoint, headers=headers, json=payload)
-    return response.json()
 
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception(f"Error: {response.status_code} - {response.text}")
 
 def main(databricks_host, databricks_token, job_id):
     settings = get_job_settings(databricks_host, databricks_token, job_id)
@@ -92,7 +106,7 @@ if __name__ == "__main__":
     try:
         job_id = sys.argv[1]
     except:
-        raise Exception("Please pass job id as argument upon execution.")
+        raise Exception("Please pass job id as argument e.g. python migrate.py <job_id>.")
 
     # Replace these values with your actual Databricks host and token
     databricks_host = os.getenv("DATABRICKS_HOST")
