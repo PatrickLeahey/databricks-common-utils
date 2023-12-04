@@ -2,21 +2,8 @@ import os
 import sys
 import requests
 
-def get_job_id_by_name(host, token, job_name):
-    endpoint = f"{host}/api/2.1/jobs/list"
-    headers = {"Authorization": f"Bearer {token}"}
-    params = {"name": job_name}
 
-    response = requests.get(endpoint, headers=headers, params=params)
-    response_json = response.json()
-
-    if "jobs" in response_json and response_json["jobs"]:
-        return response_json["jobs"][0]["job_id"]
-    else:
-        return None
-
-
-def get_tasks(host, token, job_id):
+def get_job_settings(host, token, job_id):
     endpoint = f"{host}/api/2.1/jobs/get"
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"job_id": job_id}
@@ -25,27 +12,29 @@ def get_tasks(host, token, job_id):
     response_json = response.json()
 
     if "settings" in response_json and response_json["settings"]:
-        return list(response_json["settings"]["tasks"])
+        return response_json["settings"]
     else:
-        return None
+        raise Exception(f"Job not found for id: {job_id}")
 
 
-def update_job(host, token, job_name, job_id, tasks):
-    # Update or parameterize as necessary
+def update_job(host, token, job_id, settings):
+    job_name = settings["name"]
     job_cluster_key = f"{job_name}_job_cluster"
 
-    for task in tasks:
+    job_tasks = settings["tasks"]
+    for task in job_tasks:
         task.update({"job_cluster_key": job_cluster_key})
         task.pop("existing_cluster_id")
 
+    # Update or parameterize as necessary
     update_payload = {
         "job_clusters": [
             {   
                 "job_cluster_key": job_cluster_key,
                 "new_cluster": {
                     "autoscale": {
-                        "min_workers": 1,
-                        "max_workers": 4
+                        "min_workers": 5,
+                        "max_workers": 12
                     },
                     "spark_version": "9.1.x-scala2.12",
                     "spark_conf": {
@@ -85,7 +74,7 @@ def update_job(host, token, job_name, job_id, tasks):
                 }
             },
         ],
-        "tasks": tasks,
+        "tasks": job_tasks,
     }
 
     endpoint = f"{host}/api/2.1/jobs/update"
@@ -96,26 +85,17 @@ def update_job(host, token, job_name, job_id, tasks):
     return response.json()
 
 
-def main(databricks_host, databricks_token, job_name):
-
-    # Get the job id by name
-    job_id = get_job_id_by_name(databricks_host, databricks_token, job_name)
-
-    if job_id:
-        # Update the job with the new settings
-        tasks = get_tasks(databricks_host, databricks_token, job_id)
-        update_response = update_job(databricks_host, databricks_token, job_name, job_id, tasks)
-        print("Job updated successfully:", update_response)
-    else:
-        print(f"Job with name '{job_name}' not found.")
+def main(databricks_host, databricks_token, job_id):
+    settings = get_job_settings(databricks_host, databricks_token, job_id)
+    update_response = update_job(databricks_host, databricks_token, job_id, settings)
+    print("Job updated successfully:", update_response)
 
 
 if __name__ == "__main__":
-
     try:
-        job_name = sys.argv[1]
+        job_id = sys.argv[1]
     except:
-        raise Exception("Please pass job name as argument upon execution.")
+        raise Exception("Please pass job id as argument upon execution.")
 
     # Replace these values with your actual Databricks host and token
     databricks_host = os.getenv("DATABRICKS_HOST")
@@ -124,5 +104,5 @@ if __name__ == "__main__":
     if not databricks_host or not databricks_token:
         raise Exception("Please define enviromnet variables DATABRICKS_HOST, DATABRICKS_TOKEN prior to execution.")
 
-    main(databricks_host, databricks_token, job_name)
+    main(databricks_host, databricks_token, job_id)
     
