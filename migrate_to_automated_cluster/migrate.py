@@ -32,10 +32,7 @@ def update_job(host, token, job_id, settings):
             {   
                 "job_cluster_key": job_cluster_key,
                 "new_cluster": {
-                    "autoscale": {
-                        "min_workers": 5,
-                        "max_workers": 12
-                    },
+                    "num_workers": 4
                     "spark_version": "9.1.x-scala2.12",
                     "spark_conf": {
                         "spark.databricks.io.cache.enabled": "true",
