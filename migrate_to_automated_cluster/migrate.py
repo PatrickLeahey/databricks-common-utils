@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import requests
 
 def get_job_id_by_name(host, token, job_name):
@@ -26,7 +25,6 @@ def get_tasks(host, token, job_id):
     response_json = response.json()
 
     if "settings" in response_json and response_json["settings"]:
-        print(json.dumps(response_json["settings"]["tasks"], indent=2))
         return list(response_json["settings"]["tasks"])
     else:
         return None
@@ -36,7 +34,6 @@ def update_job(host, token, job_name, job_id, tasks):
     # Update or parameterize as necessary
     job_cluster_key = f"{job_name}_job_cluster"
 
-    print(tasks)
     for task in tasks:
         task.update({"job_cluster_key": job_cluster_key})
         task.pop("existing_cluster_id")
@@ -47,8 +44,8 @@ def update_job(host, token, job_name, job_id, tasks):
                 "job_cluster_key": job_cluster_key,
                 "new_cluster": {
                     "autoscale": {
-                        "min_workers": 5,
-                        "max_workers": 12
+                        "min_workers": 1,
+                        "max_workers": 4
                     },
                     "spark_version": "9.1.x-scala2.12",
                     "spark_conf": {
@@ -61,7 +58,7 @@ def update_job(host, token, job_name, job_id, tasks):
                         "spark.databricks.aggressiveWindowDownS": "600",
                         "spark.sql.shuffle.partitions": "auto"
                     },
-                    "node_type_id": "Standard_E48ds_v5",
+                    "node_type_id": "Standard_E4ds_v5",
                     "spark_env_vars": {
                         "SPARK_NICENESS": "0",
                         "JAVA_OPTS": "\"$JAVA_OPTS -D...\"\""
