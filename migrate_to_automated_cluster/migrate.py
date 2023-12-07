@@ -1,106 +1,133 @@
+
 import os
 import sys
+import json
 import requests
 
+DRY_RUN = False
+CLUSTER_DEFAULTS = {
+    "autoscale": {
+        "min_workers": 1,
+        "max_workers": 4
+    },
+    "cluster_source": "API",
+    "driver_instance_pool_id": None,
+    "driver_node_type_id": "Standard_E4ds_v5",
+    "instance_pool_id": None,
+    "spark_version": "9.1.x-scala2.12",
+    "node_type_id": "Standard_E4ds_v5",
+    "runtime_engine": "PHOTON"
+}
 
-def get_job_settings(host, token, job_id):
-    endpoint = f"{host}/api/2.1/jobs/get"
-    headers = {"Authorization": f"Bearer {token}"}
-    payload = {"job_id": job_id}
+class Migrate:
 
-    response = requests.get(endpoint, headers=headers, json=payload)
-    response_json = response.json()
+    def __init__(self, host, token, job_id):
+        self.host = host
+        self.token = token
+        self.job_id = job_id
+        self.job_settings = None
+        self.cluster_id = None
+        self.cluster_settings = None
 
-    if response.status_code == 200:
-        return response_json["settings"]
+    def set_job_settings(self):
+        endpoint = f"{host}/api/2.1/jobs/get"
+        headers = {"Authorization": f"Bearer {token}"}
+        payload = {"job_id": self.job_id}
+
+        response = requests.get(endpoint, headers=headers, json=payload)
+        response_json = response.json()
+
+        if response.status_code == 200:
+            self.job_settings = response_json["settings"]
+        else:
+            raise Exception(f"Error: {response.status_code} - {response.text}")
+
+
+    def set_cluster_settings(self):
+        endpoint = f"{host}/api/2.0/clusters/get"
+        headers = {"Authorization": f"Bearer {token}"}
+        payload = {"cluster_id": self.cluster_id}
+
+        response = requests.get(endpoint, headers=headers, json=payload)
+        response_json = response.json()
+
+        if response.status_code == 200:
+            self.cluster_settings = response_json
+        else:
+            raise Exception(f"Error: {response.status_code} - {response.text}")
+
+
+    def update_job(self, update_payload):
+        endpoint = f"{host}/api/2.1/jobs/update"
+        headers = {"Authorization": f"Bearer {token}"}
+        payload = {"job_id": self.job_id, "new_settings": update_payload}
+
+        response = requests.post(endpoint, headers=headers, json=payload)
+
+        if response.status_code == 200:
+            print("Job update successfully.")
+        else:
+            raise Exception(f"Error: {response.status_code} - {response.text}")
+
+
+    def build_update_payload(self):
+        job_name = self.job_settings["name"]
+        job_cluster_key = f"{job_name}_job_cluster"
+
+        # Modify tasks settings
+        job_tasks = self.job_settings["tasks"]
+        for task in job_tasks:
+            try:
+                self.cluster_id = task.pop("existing_cluster_id")
+            except:
+                raise Exception("No existing interactive cluster specified")
+            task.update({"job_cluster_key": job_cluster_key})
+
+        # Get cluster settings 
+        # WARNING: Assumes that all tasks use same cluster
+        cluster_settings = self.set_cluster_settings()
+
+        # Modify cluster settings
+        cluster_update = CLUSTER_DEFAULTS
+        for param in [
+            "azure_attributes",
+            "cluster_log_conf",
+            "custom_tags",
+            "data_security_mode",
+            "docker_image",
+            "enable_elastic_disk",
+            "enable_local_disk_encryption",
+            "init_scripts",
+            "spark_conf",
+            "spark_env_vars",
+            "ssh_public_keys"
+        ]:
+            try:
+                cluster_update.update({param: self.cluster_settings[param]})
+            except KeyError:
+                pass
+
+        # Return partial update payload
+        return {
+            "job_clusters": [
+                {   
+                    "job_cluster_key": job_cluster_key,
+                    "new_cluster": cluster_update
+                },
+            ],
+            "tasks": job_tasks,
+        }
+
+
+def main(host, token, job_id):
+    m = Migrate(host, token, job_id)
+
+    m.set_job_settings()
+    update_payload = m.build_update_payload()
+    if not DRY_RUN:
+        m.update_job(update_payload)
     else:
-        raise Exception(f"Job not found for ID: {job_id}")
-
-
-def update_job(host, token, job_id, settings):
-    job_name = settings["name"]
-    job_cluster_key = f"{job_name}_job_cluster"
-
-    job_tasks = settings["tasks"]
-    for task in job_tasks:
-        task.update({"job_cluster_key": job_cluster_key})
-        try:
-            task.pop("existing_cluster_id")
-        except:
-            print(f"Warning: Existing cluster expected, but not found for job: {job_id}")
-            pass
-
-
-    # Update or parameterize as necessary
-    # Specify instance pool IDs (driver & worker)
-    update_payload = {
-        "job_clusters": [
-            {   
-                "job_cluster_key": job_cluster_key,
-                "new_cluster": {
-                    "autoscale": {
-                        "min_workers": 1,
-                        "max_workers": 4
-                    },
-                    "spark_version": "9.1.x-scala2.12",
-                    "spark_conf": {
-                        "spark.databricks.io.cache.enabled": "true",
-                        "spark.databricks.io.cache.compression.enabled": "false",
-                        "spark.databricks.delta.preview.enabled": "true",
-                        "spark.memory.offHeap.enabled": "false",
-                        "spark.databricks.io.cache.maxDiskUsage": "1750g",
-                        "spark.databricks.io.cache.maxMetaDataCache": "10g",
-                        "spark.databricks.aggressiveWindowDownS": "600",
-                        "spark.sql.shuffle.partitions": "auto"
-                    },
-                    "node_type_id": "Standard_E4ds_v5",
-                    "spark_env_vars": {
-                        "SPARK_NICENESS": "0",
-                        "JAVA_OPTS": "\"$JAVA_OPTS -D...\"\""
-                    },
-                    "init_scripts": [
-                        {
-                            "dbfs": {
-                                "destination": "dbfs:/FileStore/network_connection.sh"
-                            }
-                        },
-                        {
-                            "dbfs": {
-                                "destination": "dbfs:/FileStore/tcp_dump_api_test.sh"
-                            }
-                        },
-                        {
-                            "dbfs": {
-                                "destination": "dbfs:/FileStore/apps/init/init_updated20231011.sh"
-                            }
-                        }
-                    ],
-                    "driver_instance_pool_id": None, # TODO
-                    "instance_pool_id": None, # TODO
-                    "enable_local_disk_encryption": False,
-                    "runtime_engine": "PHOTON",
-                }
-            },
-        ],
-        "tasks": job_tasks,
-    }
-
-    endpoint = f"{host}/api/2.1/jobs/update"
-    headers = {"Authorization": f"Bearer {token}"}
-    payload = {"job_id": job_id, "new_settings": update_payload}
-
-    response = requests.post(endpoint, headers=headers, json=payload)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        raise Exception(f"Error: {response.status_code} - {response.text}")
-
-def main(databricks_host, databricks_token, job_id):
-    settings = get_job_settings(databricks_host, databricks_token, job_id)
-    update_response = update_job(databricks_host, databricks_token, job_id, settings)
-    print("Job updated successfully:", update_response)
-
+        print(json.dumps(update_payload, indent=2))
 
 if __name__ == "__main__":
     try:
@@ -108,12 +135,12 @@ if __name__ == "__main__":
     except:
         raise Exception("Please pass job id as argument e.g. python migrate.py <job_id>.")
 
-    # Replace these values with your actual Databricks host and token
-    databricks_host = os.getenv("DATABRICKS_HOST")
-    databricks_token = os.getenv("DATABRICKS_TOKEN")
+    # TODO: Replace these values with your actual Databricks host and token
+    host = os.getenv("DATABRICKS_HOST")
+    token = os.getenv("DATABRICKS_TOKEN")
 
-    if not databricks_host or not databricks_token:
+    if not host or not token:
         raise Exception("Please define enviromnet variables DATABRICKS_HOST, DATABRICKS_TOKEN prior to execution.")
 
-    main(databricks_host, databricks_token, job_id)
+    main(host, token, job_id)
     
