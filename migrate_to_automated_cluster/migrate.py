@@ -12,10 +12,10 @@ CLUSTER_DEFAULTS = {
     },
     "cluster_source": "API",
     "driver_instance_pool_id": None,
-    "driver_node_type_id": "Standard_E4ds_v5",
+    "driver_node_type_id": "Standard_E4ds_v5", # Set to None if driver_instance_pool_id is specified 
     "instance_pool_id": None,
     "spark_version": "9.1.x-scala2.12",
-    "node_type_id": "Standard_E4ds_v5",
+    "node_type_id": "Standard_E4ds_v5", # Set to None if instance_pool_id is specified 
     "runtime_engine": "PHOTON"
 }
 
@@ -95,7 +95,6 @@ class Migrate:
             "custom_tags",
             "data_security_mode",
             "docker_image",
-            "enable_elastic_disk",
             "enable_local_disk_encryption",
             "init_scripts",
             "spark_conf",
