@@ -4,7 +4,9 @@ This Python script is designed to interact with the Databricks API to update a D
 
 1. **Get Job Settings**: Retrieves the Job settings associated with a specified Job ID using the `/api/2.1/jobs/get` endpoint.
 
-2. **Update Job Settings**: Modifies the existing job settings, specifically updating the job cluster and related configurations.
+2. **Get Cluster Settings**: Retrieves the Cluster settings associated with a the Job using the `/api/2.0/clusters/get` endpoint. Warning: Assumes that all tasks for Job use the same, existing Cluster.
+
+3. **Update Job Settings**: Partially updates the existing Job, specifying settings for a new Automated Cluster, using the `/api/2.1/jobs/update` endpoint.
 
 ## Requirements
 
