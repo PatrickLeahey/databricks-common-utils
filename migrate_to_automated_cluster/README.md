@@ -17,6 +17,8 @@ Before executing the script, ensure that:
 
 ## Usage
 
+Update `CLUSTER_DEFAULTS` as desired.
+
 Execute the script by providing the Job ID as a command-line argument:
 
 ```bash
