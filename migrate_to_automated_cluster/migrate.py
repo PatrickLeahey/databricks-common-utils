@@ -1,4 +1,3 @@
-
 import os
 import sys
 import json
@@ -14,9 +13,9 @@ CLUSTER_DEFAULTS = {
     "driver_instance_pool_id": None,
     "driver_node_type_id": "Standard_E4ds_v5", # Set to None if driver_instance_pool_id is specified 
     "instance_pool_id": None,
-    "spark_version": "9.1.x-scala2.12",
     "node_type_id": "Standard_E4ds_v5", # Set to None if instance_pool_id is specified 
-    "runtime_engine": "PHOTON"
+    "runtime_engine": "PHOTON",
+    "spark_version": "9.1.x-scala2.12",    
 }
 
 class Migrate:
@@ -142,4 +141,3 @@ if __name__ == "__main__":
         raise Exception("Please define enviromnet variables DATABRICKS_HOST, DATABRICKS_TOKEN prior to execution.")
 
     main(host, token, job_id)
-    
