@@ -17,7 +17,7 @@ Before executing the script, ensure that:
 
 ## Usage
 
-Update `CLUSTER_DEFAULTS` as desired. Recommend opting for Instance Pools in place of default. \n
+Update `CLUSTER_DEFAULTS` as desired. Recommend opting for Instance Pools in place of default.  
 Set `DRY_RUN = True` to enable no-op.
 
 Execute the script by providing the Job ID as a command-line argument:
